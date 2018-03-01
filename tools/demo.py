@@ -30,15 +30,46 @@ import argparse
 from nets.vgg16 import vgg16
 from nets.resnet_v1 import resnetv1
 
-CLASSES = ('__background__',
-           'aeroplane', 'bicycle', 'bird', 'boat',
-           'bottle', 'bus', 'car', 'cat', 'chair',
-           'cow', 'diningtable', 'dog', 'horse',
-           'motorbike', 'person', 'pottedplant',
-           'sheep', 'sofa', 'train', 'tvmonitor')
 
-NETS = {'vgg16': ('vgg16_faster_rcnn_iter_70000.ckpt',),'res101': ('res101_faster_rcnn_iter_110000.ckpt',)}
-DATASETS= {'pascal_voc': ('voc_2007_trainval',),'pascal_voc_0712': ('voc_2007_trainval+voc_2012_trainval',)}
+PASCAL_VOC_CLASSES = ('__background__', 'aeroplane', 'bicycle', 'bird', 'boat',
+    'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse',
+    'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor')
+
+COCO_CLASSES = ('__background__', 'person', 'bicycle', 'car', 'motorcycle',
+    'airplane', 'bus', 'train', 'truck', 'boat', 'traffic', 'fire', 'stop',
+    'parking', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant',
+    'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie',
+    'suitcase', 'frisbee', 'skis', 'snowboard', 'sports', 'kite', 'baseball',
+    'baseball', 'skateboard', 'surfboard', 'tennis', 'bottle', 'wine', 'cup',
+    'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange',
+    'broccoli', 'carrot', 'hot', 'pizza', 'donut', 'cake', 'chair', 'couch',
+    'potted', 'bed', 'dining', 'toilet', 'tv', 'laptop', 'mouse', 'remote',
+    'keyboard', 'cell', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator',
+    'book', 'clock', 'vase', 'scissors', 'teddy', 'hair', 'toothbrush')
+
+CLASSES = {
+    'pascal_voc': PASCAL_VOC_CLASSES,
+    'pascal_voc_0712': PASCAL_VOC_CLASSES,
+    'coco': COCO_CLASSES,
+}
+
+ANCHOR_SCALES = {
+    'pascal_voc': [8, 16, 32],
+    'pascal_voc_0712': [8, 16, 32],
+    'coco': [4, 8, 16, 32],
+}
+
+NETS = {
+    'vgg16': ('vgg16_faster_rcnn_iter_70000.ckpt',),
+    'res101': ('res101_faster_rcnn_iter_110000.ckpt',),
+    'res152': ('res152_faster_rcnn_iter_1190000.ckpt',),
+}
+
+DATASETS = {
+    'pascal_voc': ('voc_2007_trainval',),
+    'pascal_voc_0712': ('voc_2007_trainval+voc_2012_trainval',),
+    'coco': ('coco_2014_train+coco_2014_valminusminival',),
+}
 
 def vis_detections(im, class_name, dets, thresh=0.5):
     """Draw detected bounding boxes."""
@@ -72,7 +103,7 @@ def vis_detections(im, class_name, dets, thresh=0.5):
     plt.tight_layout()
     plt.draw()
 
-def demo(sess, net, image_name):
+def demo(sess, net, image_name, classes):
     """Detect object classes in an image using pre-computed object proposals."""
 
     # Load the demo image
@@ -89,7 +120,7 @@ def demo(sess, net, image_name):
     # Visualize detections for each class
     CONF_THRESH = 0.8
     NMS_THRESH = 0.3
-    for cls_ind, cls in enumerate(CLASSES[1:]):
+    for cls_ind, cls in enumerate(classes[1:]):
         cls_ind += 1 # because we skipped background
         cls_boxes = boxes[:, 4*cls_ind:4*(cls_ind + 1)]
         cls_scores = scores[:, cls_ind]
@@ -120,10 +151,13 @@ if __name__ == '__main__':
     tfmodel = os.path.join('output', demonet, DATASETS[dataset][0], 'default',
                               NETS[demonet][0])
 
-
     if not os.path.isfile(tfmodel + '.meta'):
         raise IOError(('{:s} not found.\nDid you download the proper networks from '
                        'our server and place them properly?').format(tfmodel + '.meta'))
+
+    classes = CLASSES[dataset]
+    n_classes = len(classes)
+    anchor_scales = ANCHOR_SCALES[dataset]
 
     # set config
     tfconfig = tf.ConfigProto(allow_soft_placement=True)
@@ -136,10 +170,12 @@ if __name__ == '__main__':
         net = vgg16()
     elif demonet == 'res101':
         net = resnetv1(num_layers=101)
+    elif demonet == 'res152':
+        net = resnetv1(num_layers=152)
     else:
         raise NotImplementedError
-    net.create_architecture("TEST", 21,
-                          tag='default', anchor_scales=[8, 16, 32])
+    net.create_architecture("TEST", n_classes,
+                          tag='default', anchor_scales=anchor_scales)
     saver = tf.train.Saver()
     saver.restore(sess, tfmodel)
 
@@ -150,6 +186,6 @@ if __name__ == '__main__':
     for im_name in im_names:
         print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
         print('Demo for data/demo/{}'.format(im_name))
-        demo(sess, net, im_name)
+        demo(sess, net, im_name, classes)
 
     plt.show()
