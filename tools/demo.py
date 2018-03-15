@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os, cv2
 import argparse
+import re
 
 from nets.vgg16 import vgg16
 from nets.resnet_v1 import resnetv1
@@ -103,12 +104,11 @@ def vis_detections(im, class_name, dets, thresh=0.5):
     plt.tight_layout()
     plt.draw()
 
-def demo(sess, net, image_name, classes):
+def demo(sess, net, image_path, classes):
     """Detect object classes in an image using pre-computed object proposals."""
 
     # Load the demo image
-    im_file = os.path.join(cfg.DATA_DIR, 'demo', image_name)
-    im = cv2.imread(im_file)
+    im = cv2.imread(image_path)
 
     # Detect all object classes and regress object bounds
     timer = Timer()
@@ -137,6 +137,8 @@ def parse_args():
                         choices=NETS.keys(), default='res101')
     parser.add_argument('--dataset', dest='dataset', help='Trained dataset [pascal_voc pascal_voc_0712]',
                         choices=DATASETS.keys(), default='pascal_voc_0712')
+    parser.add_argument('--demo-dir', dest='demo_dir', help='Where the images to test on are.',
+                        default=os.path.join(cfg.DATA_DIR, 'demo'))
     args = parser.parse_args()
 
     return args
@@ -181,11 +183,18 @@ if __name__ == '__main__':
 
     print('Loaded network {:s}'.format(tfmodel))
 
-    im_names = ['000456.jpg', '000542.jpg', '001150.jpg',
-                '001763.jpg', '004545.jpg']
-    for im_name in im_names:
-        print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
-        print('Demo for data/demo/{}'.format(im_name))
-        demo(sess, net, im_name, classes)
+    # Search for the images that will be used.
+    im_paths = []
+    for root, dirs, files in os.walk(args.demo_dir):
+        im_filenames = filter(lambda f: re.match(r'.+\.(jpg|JPG|jpeg|JPEG|png|PNG)$', f), files)
+        im_filepaths = list(map(lambda f: os.path.join(root, f), im_filenames))
 
-    plt.show()
+    for im_filepath in im_filepaths:
+        print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+        print('Demo for `{}`.'.format(im_filepath))
+        demo(sess, net, im_filepath, classes)
+        plt.show()
+        response = input('Continue ([y]|n)? ')
+        if re.match(r'^(n|no|N|NO)$', response):
+            break
+
